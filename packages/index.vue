@@ -26,21 +26,29 @@
                         :class="showOtherDay ? 'prevDay':''"
                         v-for="item in beforeEmptyDate"
                         :key="item.timestamp"
+                        @click="selectedItem(item, -1)"
                     >
                         {{ showOtherDay ? item.day : '&nbsp;' }}
                     </div>
                     <div
                         class="dayWrapper-item curDay"
-                        v-for="item in curDate.days"
+                        :class="[
+                            todayDate.year == item.year && todayDate.month == item.month && todayDate.day == item.day ? 'active' : '',
+                            selectedDate.year == item.year && selectedDate.month == item.month && selectedDate.day == item.day ? 'selected' : '',
+                            thingsList[`${item.year}-${item.month}-${item.day}`] ? 'haveThing':''
+                        ]"
+                        v-for="item in daysList"
                         :key="item.timestamp"
+                        @click="selectedItem(item, 1)"
                     >
-                        {{ item }}
+                        {{ item.day }}
                     </div>
                     <div
                         class="dayWrapper-item"
                         :class="showOtherDay ? 'nextDay':''"
                         v-for="item in afterEmptyDate"
                         :key="item.timestamp"
+                        @click="selectedItem(item, -1)"
                     >
                         {{ showOtherDay ? item.day : '&nbsp;' }}
                     </div>
@@ -77,7 +85,16 @@
                 </div>
             </div>
         </div>
-        <div class="calendar-thing"></div>
+        <div class="calendar-thing" v-if="selectedThing.length > 0">
+            <ul>
+                <li
+                    v-for="(item, index) in selectedThing"
+                    :key="`${item}_${index}`"
+                >
+                    {{ item }}
+                </li>
+            </ul>
+        </div>
     </div>
 </template>
 
@@ -109,6 +126,12 @@ export default {
         showOtherDay: {
             type: Boolean,
             default: true
+        },
+        areaThings: {
+            type: Array,
+            default() {
+                return []
+            }
         }
     },
 
@@ -128,12 +151,18 @@ export default {
                 ['Sun', 'Mon.', 'Tues.', 'Wed', 'Thur', 'Fri', 'Sat'],
             ],
 
-            yearList: '',
-            monthList: '',
+            yearList: [],
+            monthList: [],
+            daysList: [],
+            thingsList: [],
             curDate: {},
 
             waitYear: '',
             waitMonth: '',
+
+            todayDate: '',
+            selectedDate: '',
+            selectedThing: [],
 
             isShowYearMonthWrapper: false
         }
@@ -236,17 +265,35 @@ export default {
             dateInfo.lastWeek = (new Date(dateInfo.year, dateInfo.month - 1, dateInfo.days)).getDay()
             return dateInfo
         },
+        // changeDate
+        changeDate(stamp = '') {
+            this.curDate = this.getDateNow(stamp)
+            this.selectedDate = ''
+            this.selectedThing = []
+            this.getDayList()
+        },
         // 上个月
         prevMonth() {
             if(!this.allowChange) return false 
             const stamp = new Date(this.curDate.timestamp).setMonth(this.curDate.month - 2)
-            this.curDate = this.getDateNow(stamp)
+            this.changeDate(stamp)
         },
         // 下个月
         nextMonth() {
             if(!this.allowChange) return false 
             const stamp = new Date(this.curDate.timestamp).setMonth(this.curDate.month)
-            this.curDate = this.getDateNow(stamp)
+            this.changeDate(stamp)
+        },
+        getDayList() {
+            let arr = []
+            let date = this.curDate
+            for(let i = 1; i <= date.days; i++) {
+                arr.push(
+                    this.getDateNow(new Date(date.year, date.month-1, i))
+                )
+            }
+            console.log(arr)
+            this.daysList = arr
         },
         // 获取月份
         getMonthList() {
@@ -273,33 +320,69 @@ export default {
             }
             this.yearList = years
         },
+        // 切换年月弹窗
         changeYearMonth() {
             if(!this.allowYearMonthChange) return false
             this.waitYear = this.curDate.year
             this.waitMonth = this.curDate.month
             this.isShowYearMonthWrapper = !this.isShowYearMonthWrapper
         },
-        // confirmYearMonth
+        // 确认年月
         confirmYearMonth() {
-            this.curDate = this.getDateNow(new Date(this.waitYear, this.waitMonth - 1))
+            this.changeDate(new Date(this.waitYear, this.waitMonth - 1))
             this.isShowYearMonthWrapper = !this.isShowYearMonthWrapper
         },
+        // 取消年月
         cancelYearMonth() {
             this.isShowYearMonthWrapper = !this.isShowYearMonthWrapper
         },
-        // chooseYear
+        // 选择年
         chooseYear(item) {
             this.waitYear = item
         },
+        // 选择月
         chooseMonth(item) {
             this.waitMonth = item
+        },
+        // 点击某日
+        selectedItem(item, isCurMonth) {
+            this.selectedDate = item
+            if(isCurMonth < 0) {
+                this.changeDate(item.timestamp)
+            } else {
+                // console.log(this.things)
+                // console.log(`${item.year}-${item.month}-${item.day}`)
+                this.selectedThing = this.thingsList[`${item.year}-${item.month}-${item.day}`] || []
+            }
+        },
+        // getThings
+        getThings() {
+            let things = {}
+            this.areaThings.forEach((item) => {
+                if(item.end) {
+                    const startDate = this.getDateNow(item.start)
+                    const endDate = this.getDateNow(item.end)
+                    const reduce = endDate.timestamp - startDate.timestamp
+                    const start = reduce < 0 ? endDate : startDate
+                    const days = Math.abs(reduce / 1000 / 60 / 60 / 24)
+                    for(let i = 0; i <= days; i++) {
+                        const date = this.getDateNow(`${start.year}-${start.month}-${start.day + i}`)
+                        things[`${date.year}-${date.month}-${date.day}`] = item.things
+                    }
+                } else {
+                    things[item.start] = item.things
+                }
+            })
+            this.thingsList = things
         },
         // 初始化
         init() {
             this.getYearList()
             this.getMonthList()
+            this.getThings()
             const date = this.getDateNow()
-            this.curDate = date
+            this.todayDate = date
+            this.changeDate()
         },
     },
 
@@ -316,6 +399,10 @@ $barHeight: 40px;
 $itemHeight: 40px;
 $borderColor: #efefef;
 $backgroundColor: #ffffff;
+
+$selectedColor: #69b4e0;
+$activeColor: #69b4e0;
+$thingColor: #fd6363;
 
 .theme1 {
     border: 1px solid $borderColor;
@@ -340,18 +427,34 @@ $backgroundColor: #ffffff;
     .dayWrapper {
         &-item {
             box-shadow: 1px 1px 0 0 lighten($borderColor, 3%);
-            &.curDay,
-            &.prevDay,
-            &.nextDay {
-                &:hover,
-                &:active {
-                    background: darken(#ffffff, 5%);
-                }
+            &:hover {
+                background: darken(#ffffff, 5%);
             }
             &.prevDay,
             &.nextDay {
                 color: darken($backgroundColor, 30%);
                 background: darken(#ffffff, 2%);
+            }
+            &.selected {
+                color: $activeColor;
+            }
+            &.active {
+                background: $selectedColor;
+                color: #ffffff;
+            }
+            &.haveThing {
+                position: relative;
+                &:before {
+                    content: '';
+                    position: absolute;
+                    top: 5px;
+                    right: 5px;
+                    width: 5px;
+                    height: 5px;
+                    border-radius: 50%;
+                    overflow: hidden;
+                    background: $thingColor;
+                }
             }
         }
     }
@@ -360,8 +463,7 @@ $backgroundColor: #ffffff;
         &-item {
             box-shadow: 1px 1px 0 0 lighten($borderColor, 3%);
             &.active,
-            &:hover,
-            &:active {
+            &:hover {
                 background: darken(#ffffff, 5%);
             }
         }
@@ -399,6 +501,20 @@ $backgroundColor: #ffffff;
             justify-content: center;
             width: $barHeight;
             font-size: 24px;
+        }
+    }
+    &-thing {
+        font-size: 14px;
+        color: #999;
+        padding: 10px ;
+        ul {
+            list-style: disc;
+            padding: 0 0 0 30px;
+            margin: 0;
+        }
+        li {
+            line-height: 1.4em;
+            padding: 5px 0;
         }
     }
 }
@@ -452,6 +568,7 @@ $backgroundColor: #ffffff;
         align-items: center;
         justify-content: center;
         min-height: $itemHeight;
+        overflow: hidden;
     }
 }
 </style>

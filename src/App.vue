@@ -1,12 +1,33 @@
 <template>
   <div id="app">
-    <CrazyCalendar></CrazyCalendar>
+    <CrazyCalendar :areaThings="areaThings"></CrazyCalendar>
   </div>
 </template>
 
 <script>
 export default {
   name: 'App',
+  data() {
+    return {
+      areaThings: [
+        {
+            start: '2020-4-20',
+            end: '2020-4-30',
+            things: [
+                'Test 1',
+            ]
+        },
+        {
+            start: '2020-3-20',
+            end: '',
+            things: [
+                'Test 2',
+                'Test 3'
+            ]
+        }
+      ]
+    } 
+  }
 }
 </script>
 
